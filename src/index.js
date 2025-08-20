@@ -9,7 +9,12 @@ const app = express();
 
 // CORS
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: [
+    'http://localhost:3000',
+    'https://web.telegram.org',
+    /\.telegram\.org$/,
+    /\.ngrok-free\.app$/
+  ],
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
 }));
