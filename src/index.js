@@ -9,7 +9,7 @@ const app = express();
 
 // CORS
 app.use(cors({
-  origin: 'http://localhost:3001',
+  origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
 }));
