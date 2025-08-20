@@ -9,12 +9,7 @@ const app = express();
 
 // CORS
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://web.telegram.org',
-    /\.telegram\.org$/,
-    /\.ngrok-free\.app$/
-  ],
+  origin: 'http://localhost:3001',
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
 }));
@@ -87,7 +82,7 @@ app.get('/api/users/:telegramId', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5002;
 app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
 });
