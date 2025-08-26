@@ -9,9 +9,9 @@ const app = express();
 
 // CORS
 app.use(cors({
-  origin: '*',
+  origin: '*', // Разрешаем запросы с любого источника
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'ngrok-skip-browser-warning'], // Добавляем ngrok-skip-browser-warning
 }));
 
 app.use(express.json());
@@ -20,6 +20,7 @@ app.use(express.json());
 app.use((req, res, next) => {
   console.log(`[${req.method}] ${req.url} from ${req.headers.origin}`);
   console.log('Request headers:', req.headers);
+  console.log('Request body:', req.body);
   next();
 });
 
