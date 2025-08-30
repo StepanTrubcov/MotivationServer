@@ -1,0 +1,20 @@
+generator client {
+  provider   = "prisma-client-js"
+  output     = "../../node_modules/@prisma/postgres-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Goal {
+  id             String    @id
+  title          String
+  points         Int
+  status         String
+  completionDate DateTime?
+  description    String
+  userId         String
+  startDate      DateTime?
+}
