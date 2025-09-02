@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
+    "postinstall": "npx prisma generate --schema=prisma-mongo/schema.prisma && npx prisma generate --schema=prisma-postgres/schema.prisma --accelerate",
     "dev": "nodemon src/index.js",
     "build": "npm install",
     "test": "echo \"Error: no test specified\" && exit 1"
