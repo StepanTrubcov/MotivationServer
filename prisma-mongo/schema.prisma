@@ -13,4 +13,5 @@ model User {
   firstName  String?
   username   String?
   photoUrl   String?
+  pts        Int      @default(0)
 }

@@ -141,6 +141,43 @@ async function startServer() {
       }
     });
 
+    // Увеличить pts пользователя по id (Mongo ObjectId)
+    app.post('/api/users/:id/pts/increment', async (req, res) => {
+      const { id } = req.params;
+      const { amount } = req.body;
+
+      const inc = Number(amount);
+      if (!id) return res.status(400).json({ error: 'id is required in params' });
+      if (!Number.isInteger(inc) || inc <= 0) {
+        return res.status(400).json({ error: 'amount must be a positive integer' });
+      }
+
+      try {
+        // ищем пользователя по id (Mongo ObjectId)
+        const user = await prisma.user.findUnique({ where: { id: String(id) } });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const updated = await prisma.user.update({
+          where: { id: String(id) },
+          data: { pts: { increment: inc } }
+        });
+
+        res.json({
+          success: true,
+          user: {
+            id: updated.id,
+            telegramId: updated.telegramId,
+            pts: updated.pts
+          }
+        });
+      } catch (err) {
+        console.error('Error incrementing pts:', err);
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+
+
     // Проверка завершения целей
     app.post('/api/check-completion/:userId', async (req, res) => {
       const { userId } = req.params;
