@@ -4,7 +4,6 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
-// Загружаем переменные окружения (Render подставит их автоматически)
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,7 +11,6 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   try {
-    // Подключаем Prisma
     const { prisma } = await import('./prismaClient.js');
     console.log('MongoDB Prisma client loaded successfully');
 
@@ -21,7 +19,6 @@ async function startServer() {
 
     const app = express();
 
-    // CORS и JSON middleware
     app.use(cors({
       origin: '*',
       methods: ['GET', 'POST', 'PUT', 'OPTIONS'],
@@ -29,19 +26,52 @@ async function startServer() {
     }));
     app.use(express.json());
 
-    // Логирование запросов
     app.use((req, res, next) => {
       console.log(`[${req.method}] ${req.url} from ${req.headers.origin}`);
       console.log('Request body:', req.body);
       next();
     });
 
-    // Тестовый маршрут
     app.get('/test', (req, res) => {
       res.json({ message: 'Server is running' });
     });
 
-    // Создание/обновление пользователя
+    app.post('/api/users/:telegramId/completed-dates', async (req, res) => {
+      const { telegramId } = req.params;
+      const { date } = req.body;
+
+      if (!date) return res.status(400).json({ error: "Дата обязательна" });
+
+      try {
+        const user = await prisma.user.update({
+          where: { telegramId },
+          data: {
+            completedDates: { push: date }
+          }
+        });
+        res.json(user);
+      } catch (error) {
+        console.error("Ошибка добавления даты:", error);
+        res.status(500).json({ error: "Ошибка сервера" });
+      }
+    });
+
+    app.get('/api/users/:telegramId/completed-dates', async (req, res) => {
+      const { telegramId } = req.params;
+
+      try {
+        const user = await prisma.user.findUnique({
+          where: { telegramId },
+          select: { completedDates: true }
+        });
+        if (!user) return res.status(404).json({ error: "Пользователь не найден" });
+        res.json(user.completedDates);
+      } catch (error) {
+        console.error("Ошибка получения дат:", error);
+        res.status(500).json({ error: "Ошибка сервера" });
+      }
+    });
+
     app.post('/api/users', async (req, res) => {
       const { telegramId, firstName, username, photoUrl } = req.body;
       try {
@@ -63,7 +93,6 @@ async function startServer() {
       }
     });
 
-    // Получение всех целей пользователя
     app.get('/api/goals/:userId', async (req, res) => {
       const { userId } = req.params;
       try {
@@ -75,7 +104,6 @@ async function startServer() {
       }
     });
 
-    // Инициализация целей
     app.post('/api/initialize-goals/:userId', async (req, res) => {
       const { userId } = req.params;
       const { goalsArray } = req.body;
@@ -116,7 +144,6 @@ async function startServer() {
       }
     });
 
-    // Обновление статуса цели
     app.put('/api/goals/:userId/:goalId', async (req, res) => {
       const { userId, goalId } = req.params;
       const { newStatus } = req.body;
@@ -141,7 +168,6 @@ async function startServer() {
       }
     });
 
-    // Увеличить pts пользователя по id (Mongo ObjectId)
     app.post('/api/users/:id/pts/increment', async (req, res) => {
       const { id } = req.params;
       const { amount } = req.body;
@@ -153,7 +179,6 @@ async function startServer() {
       }
 
       try {
-        // ищем пользователя по id (Mongo ObjectId)
         const user = await prisma.user.findUnique({ where: { id: String(id) } });
         if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -176,9 +201,6 @@ async function startServer() {
       }
     });
 
-
-
-    // Проверка завершения целей
     app.post('/api/check-completion/:userId', async (req, res) => {
       const { userId } = req.params;
       try {
@@ -215,7 +237,6 @@ async function startServer() {
       }
     });
 
-    // Используем порт, который назначает Render
     const PORT = process.env.PORT || 5002;
     app.listen(PORT, () => {
       console.log(`✅ Server running on port ${PORT}`);

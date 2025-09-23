@@ -3,9 +3,8 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  // Обновляем всех пользователей, включая null
   const updated = await prisma.user.updateMany({
-    where: {}, // пустой where = все записи
+    where: {},
     data: { pts: 0 },
   });
 

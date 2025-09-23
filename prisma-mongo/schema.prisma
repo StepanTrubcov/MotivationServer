@@ -8,10 +8,11 @@ datasource db {
 }
 
 model User {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  telegramId String   @unique
-  firstName  String?
-  username   String?
-  photoUrl   String?
-  pts        Int      @default(0)
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  telegramId     String   @unique
+  firstName      String?
+  username       String?
+  photoUrl       String?
+  pts            Int      @default(0)
+  completedDates String[] @default([])
 }

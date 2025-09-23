@@ -1,4 +1,3 @@
-// scripts/set_pts_zero.js
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 
