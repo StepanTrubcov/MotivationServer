@@ -26,9 +26,10 @@ async function startServer() {
     }));
     app.use(express.json());
 
+    // Логирование запросов
     app.use((req, res, next) => {
-      console.log(`[${req.method}] ${req.url} from ${req.headers.origin}`);
-      console.log('Request body:', req.body);
+      console.log(`[${req.method}] ${req.url} from ${req.headers.origin || 'local'}`);
+      if (req.method !== 'GET') console.log('Request body:', req.body);
       next();
     });
 
@@ -39,7 +40,6 @@ async function startServer() {
     app.post('/api/users/:telegramId/completed-dates', async (req, res) => {
       const { telegramId } = req.params;
       const { date } = req.body;
-
       if (!date) return res.status(400).json({ error: "Дата обязательна" });
 
       try {
@@ -58,7 +58,6 @@ async function startServer() {
 
     app.get('/api/users/:telegramId/completed-dates', async (req, res) => {
       const { telegramId } = req.params;
-
       try {
         const user = await prisma.user.findUnique({
           where: { telegramId },
@@ -150,7 +149,7 @@ async function startServer() {
       try {
         if (!newStatus) return res.status(400).json({ error: 'newStatus is required' });
 
-        const goal = await prismaPostgres.goal.findUnique({ where: { id: String(goalId), userId: String(userId) } });
+        const goal = await prismaPostgres.goal.findFirst({ where: { id: String(goalId), userId: String(userId) } });
         if (!goal) return res.status(404).json({ error: 'Goal not found' });
 
         const updatedGoal = await prismaPostgres.goal.update({
@@ -237,9 +236,60 @@ async function startServer() {
       }
     });
 
+    app.post('/api/generate-report', async (req, res) => {
+      try {
+        const { goals } = req.body;
+        if (!goals || !Array.isArray(goals) || goals.length === 0) {
+          return res.status(400).json({ error: "Присылай массив goals" });
+        }
+
+        // статистика
+        const doneCount = goals.filter(g => g.status === 'done').length;
+        const totalCount = goals.length;
+        const ratio = doneCount / totalCount;
+
+        let diaryNote = '';
+        if (ratio >= 1) {
+          diaryNote = "Сегодня я справился со всеми задачами. Я доволен результатом и чувствую прогресс! 🔥";
+        } else if (ratio >= 0.8) {
+          diaryNote = "Сегодня я справился почти со всеми задачами. Я почти доволен результатом и чувствую прогресс! 🔥";
+        } else if (ratio >= 0.5) {
+          diaryNote = "Сегодня я сделал примерно половину запланированного. Есть куда расти, но я на правильном пути. ⚡";
+        } else if (doneCount > 0) {
+          diaryNote = "Сегодня я выполнил часть целей. Это только начало, завтра сделаю больше. 🌱";
+        } else {
+          diaryNote = "Сегодня получилось меньше, чем хотелось бы, но я не сдаюсь и завтра точно будет лучше. 💡";
+        }
+
+        // Формируем список целей: чистим заголовки, ставим эмодзи и делаем пустую строку между пунктами
+        const goalsList = goals
+          .map(g => {
+            const title = String(g.title || '').replace(/\u00A0/g, ' ').trim(); // убираем NBSP и лишние пробелы
+            const status = (g.status === 'done') ? '✅' : '☑️';
+            return `${status} ${title}`;
+          })
+          .join('\n\n'); // одна пустая строка между целями
+
+        // Дата
+        const today = new Date().toLocaleDateString('ru-RU', {
+          day: 'numeric',
+          month: 'long'
+        });
+
+        // Собираем финальное сообщение через массив + join — так гарантированно не будет лишних отступов
+        const finalMessage = [`${today} #v1 #дд`, goalsList, diaryNote].join('\n\n').trim();
+
+        res.json({ message: finalMessage, success: true });
+      } catch (err) {
+        console.error('Error in /api/generate-report:', err);
+        res.status(500).json({ error: 'Не удалось сгенерировать отчёт: ' + err.message });
+      }
+    });
+
     const PORT = process.env.PORT || 5002;
     app.listen(PORT, () => {
       console.log(`✅ Server running on port ${PORT}`);
+      console.log(`✅ Hugging Face DialoGPT report generation enabled`);
     });
 
   } catch (err) {
