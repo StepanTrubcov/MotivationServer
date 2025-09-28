@@ -286,6 +286,74 @@ async function startServer() {
       }
     });
 
+    app.post('/api/users/:userId/achievements', async (req, res) => {
+      const { userId } = req.params;
+      const { achievements } = req.body;
+
+      if (!achievements || !Array.isArray(achievements)) {
+        return res.status(400).json({ error: 'Achievements must be an array' });
+      }
+
+      try {
+        const processedAchievements = [];
+
+        for (const ach of achievements) {
+          // Ищем достижение по userId и title
+          const existing = await prisma.achievement.findFirst({
+            where: { userId, title: ach.title }
+          });
+
+          if (existing) {
+            // Если нужно, обновляем статус или другие поля
+            const updated = await prisma.achievement.update({
+              where: { id: existing.id },
+              data: {
+                status: ach.status,
+                points: ach.points,
+                description: ach.description,
+                requirement: ach.requirement,
+                image: ach.image
+              }
+            });
+            processedAchievements.push(updated);
+          } else {
+            // Создаём новое достижение
+            const created = await prisma.achievement.create({
+              data: {
+                title: ach.title,
+                description: ach.description,
+                requirement: ach.requirement,
+                status: ach.status,
+                image: ach.image,
+                points: ach.points,
+                userId
+              }
+            });
+            processedAchievements.push(created);
+          }
+        }
+
+        res.json(processedAchievements);
+      } catch (err) {
+        console.error('Error saving achievements:', err);
+        res.status(500).json({ error: 'Не удалось сохранить достижения' });
+      }
+    });
+
+    app.get('/api/users/:userId/achievements', async (req, res) => {
+      const { userId } = req.params;
+
+      try {
+        const achievements = await prisma.achievement.findMany({
+          where: { userId }
+        });
+        res.json(achievements);
+      } catch (err) {
+        console.error('Error fetching achievements:', err);
+        res.status(500).json({ error: 'Не удалось получить достижения' });
+      }
+    });
+
     const PORT = process.env.PORT || 5002;
     app.listen(PORT, () => {
       console.log(`✅ Server running on port ${PORT}`);
