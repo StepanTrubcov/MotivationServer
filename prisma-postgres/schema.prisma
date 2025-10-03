@@ -8,11 +8,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum GoalStatus {
+  not_started
+  in_progress
+  completed
+}
+
 model Goal {
-  id             String    @id
+  id             String      @id
   title          String
   points         Int
-  status         String
+  status         GoalStatus  @default(not_started)
+  progress       Int         @default(0) 
   completionDate DateTime?
   description    String
   userId         String

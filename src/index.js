@@ -73,18 +73,46 @@ async function startServer() {
 
     app.post('/api/users', async (req, res) => {
       const { telegramId, firstName, username, photoUrl } = req.body;
+
       try {
-        let user = await prisma.user.findUnique({ where: { telegramId: String(telegramId) } });
+        let user = await prisma.user.findUnique({
+          where: { telegramId: String(telegramId) },
+        });
+
         if (user) {
-          user = await prisma.user.update({
-            where: { telegramId: String(telegramId) },
-            data: { firstName, username, photoUrl },
-          });
+          if (!user.registrationDate) {
+            await prisma.achievement.deleteMany({ where: { userId: user.id } });
+            await prisma.user.delete({ where: { id: user.id } });
+
+            user = await prisma.user.create({
+              data: {
+                telegramId: String(telegramId),
+                firstName,
+                username,
+                photoUrl,
+                registrationDate: new Date(),
+              },
+            });
+          } else {
+            // если всё ок → просто обновляем
+            user = await prisma.user.update({
+              where: { telegramId: String(telegramId) },
+              data: { firstName, username, photoUrl },
+            });
+          }
         } else {
+          // создаём нового юзера
           user = await prisma.user.create({
-            data: { telegramId: String(telegramId), firstName, username, photoUrl },
+            data: {
+              telegramId: String(telegramId),
+              firstName,
+              username,
+              photoUrl,
+              registrationDate: new Date(),
+            },
           });
         }
+
         res.json(user);
       } catch (err) {
         console.error('Error in /api/users:', err);
@@ -113,26 +141,41 @@ async function startServer() {
           if (!goal.id || !goal.title || !goal.points || !goal.status || !goal.description)
             return res.status(400).json({ error: `Invalid goal data: ${JSON.stringify(goal)}` });
 
+          let statusValue;
+          switch (goal.status) {
+            case 'done':
+              statusValue = 'completed';
+              break;
+            case 'in_progress':
+            case 'not_started':
+              statusValue = goal.status;
+              break;
+            default:
+              return res.status(400).json({ error: `Invalid status value: ${goal.status}` });
+          }
+
           await prismaPostgres.goal.upsert({
             where: { id: String(goal.id) },
             update: {
               title: goal.title,
               points: goal.points,
-              status: goal.status,
+              status: statusValue,
               completionDate: goal.completionDate ? new Date(goal.completionDate) : null,
               description: goal.description,
               userId: String(userId),
               startDate: goal.startDate ? new Date(goal.startDate) : null,
+              progress: goal.progress || 0,
             },
             create: {
               id: String(goal.id),
               title: goal.title,
               points: goal.points,
-              status: goal.status,
+              status: statusValue,
               completionDate: goal.completionDate ? new Date(goal.completionDate) : null,
               description: goal.description,
               userId: String(userId),
               startDate: goal.startDate ? new Date(goal.startDate) : null,
+              progress: goal.progress || 0,
             },
           });
         }
@@ -152,12 +195,26 @@ async function startServer() {
         const goal = await prismaPostgres.goal.findFirst({ where: { id: String(goalId), userId: String(userId) } });
         if (!goal) return res.status(404).json({ error: 'Goal not found' });
 
+        let statusValue;
+        switch (newStatus) {
+          case 'done':
+            statusValue = 'completed';
+            break;
+          case 'in_progress':
+          case 'not_started':
+            statusValue = newStatus;
+            break;
+          default:
+            return res.status(400).json({ error: 'Invalid status value' });
+        }
+
         const updatedGoal = await prismaPostgres.goal.update({
           where: { id: String(goalId) },
           data: {
-            status: newStatus,
-            startDate: newStatus === 'in_progress' && !goal.startDate ? new Date() : goal.startDate,
-            completionDate: newStatus === 'done' ? new Date() : goal.completionDate,
+            status: statusValue,
+            startDate: statusValue === 'in_progress' && !goal.startDate ? new Date() : goal.startDate,
+            completionDate: statusValue === 'completed' ? new Date() : goal.completionDate,
+            progress: statusValue === 'completed' ? { increment: 1 } : undefined,
           },
         });
         res.json(updatedGoal);
@@ -216,7 +273,7 @@ async function startServer() {
                 });
                 return { ...goal, status: 'not_started', startDate: null, completionDate: null };
               }
-            } else if (goal.status === 'done' && goal.completionDate) {
+            } else if (goal.status === 'completed' && goal.completionDate) {
               const timeDiff = (currentTime - new Date(goal.completionDate)) / 1000;
               if (timeDiff >= 20) {
                 await prismaPostgres.goal.update({
@@ -244,7 +301,7 @@ async function startServer() {
         }
 
         // статистика
-        const doneCount = goals.filter(g => g.status === 'done').length;
+        const doneCount = goals.filter(g => g.status === 'completed').length;
         const totalCount = goals.length;
         const ratio = doneCount / totalCount;
 
@@ -265,7 +322,7 @@ async function startServer() {
         const goalsList = goals
           .map(g => {
             const title = String(g.title || '').replace(/\u00A0/g, ' ').trim(); // убираем NBSP и лишние пробелы
-            const status = (g.status === 'done') ? '✅' : '☑️';
+            const status = (g.status === 'completed') ? '✅' : '☑️';
             return `${status} ${title}`;
           })
           .join('\n\n'); // одна пустая строка между целями
@@ -286,6 +343,7 @@ async function startServer() {
       }
     });
 
+
     app.post('/api/users/:userId/achievements', async (req, res) => {
       const { userId } = req.params;
       const { achievements } = req.body;
@@ -298,26 +356,16 @@ async function startServer() {
         const processedAchievements = [];
 
         for (const ach of achievements) {
-          // Ищем достижение по userId и title
+          // Проверяем есть ли такое достижение
           const existing = await prisma.achievement.findFirst({
             where: { userId, title: ach.title }
           });
 
           if (existing) {
-            // Если нужно, обновляем статус или другие поля
-            const updated = await prisma.achievement.update({
-              where: { id: existing.id },
-              data: {
-                status: ach.status,
-                points: ach.points,
-                description: ach.description,
-                requirement: ach.requirement,
-                image: ach.image
-              }
-            });
-            processedAchievements.push(updated);
+            // ⚡ Ничего не меняем, просто возвращаем как есть
+            processedAchievements.push(existing);
           } else {
-            // Создаём новое достижение
+            // ⚡ Если достижения нет — создаём
             const created = await prisma.achievement.create({
               data: {
                 title: ach.title,
@@ -326,6 +374,9 @@ async function startServer() {
                 status: ach.status,
                 image: ach.image,
                 points: ach.points,
+                type: ach.type,
+                goalIds: ach.goalIds || [],
+                target: ach.target,
                 userId
               }
             });
@@ -340,6 +391,7 @@ async function startServer() {
       }
     });
 
+
     app.get('/api/users/:userId/achievements', async (req, res) => {
       const { userId } = req.params;
 
@@ -353,6 +405,37 @@ async function startServer() {
         res.status(500).json({ error: 'Не удалось получить достижения' });
       }
     });
+
+    app.put('/api/users/:userId/achievements/:achievementId/status', async (req, res) => {
+      const { userId, achievementId } = req.params;
+      const { newStatus } = req.body;
+
+      if (!newStatus) {
+        return res.status(400).json({ error: 'newStatus is required' });
+      }
+
+      try {
+        // Проверяем, что достижение принадлежит юзеру
+        const achievement = await prisma.achievement.findFirst({
+          where: { id: String(achievementId), userId: String(userId) }
+        });
+
+        if (!achievement) {
+          return res.status(404).json({ error: 'Achievement not found' });
+        }
+
+        const updated = await prisma.achievement.update({
+          where: { id: achievement.id },
+          data: { status: newStatus }
+        });
+
+        res.json(updated);
+      } catch (err) {
+        console.error('Error updating achievement status:', err);
+        res.status(500).json({ error: 'Не удалось изменить статус достижения' });
+      }
+    });
+
 
     const PORT = process.env.PORT || 5002;
     app.listen(PORT, () => {
