@@ -3,11 +3,19 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { createCanvas, loadImage } from 'canvas';
+import fs from 'fs';
+import multer from 'multer';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// const uploadDir = path.join(__dirname, 'uploads');
+// if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+
+// // ⚡ Middleware для статики
+// app.use('/uploads', express.static(uploadDir));
 
 async function startServer() {
   try {
@@ -436,6 +444,89 @@ async function startServer() {
       }
     });
 
+    app.post('/api/achievement/share', async (req, res) => {
+      try {
+        const { title, description, image, points, username } = req.body;
+
+        if (!title || !description) {
+          return res.status(400).json({ success: false, message: 'Не хватает данных' });
+        }
+
+        const width = 1200;
+        const height = 630;
+        const canvas = createCanvas(width, height);
+        const ctx = canvas.getContext('2d');
+
+        // 🖤 Фон
+        ctx.fillStyle = '#0b0b0b';
+        ctx.fillRect(0, 0, width, height);
+
+        // 🧍‍♂️ Имя пользователя
+        ctx.fillStyle = '#00ff99';
+        ctx.font = 'bold 48px Inter';
+        ctx.textAlign = 'left';
+        ctx.fillText(`@${username || 'user'}`, 80, 100);
+
+        // 🏆 Название достижения
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 80px Inter';
+        ctx.fillText(title, 80, 200);
+
+        // 📜 Описание — переносим строки, чтобы не выходило за пределы
+        ctx.font = '34px Inter';
+        ctx.fillStyle = '#ffffff';
+        const maxWidth = width - 160;
+        const words = description.split(' ');
+        let line = '';
+        let y = 270;
+        for (const word of words) {
+          const testLine = line + word + ' ';
+          const metrics = ctx.measureText(testLine);
+          if (metrics.width > maxWidth) {
+            ctx.fillText(line.trim(), 80, y);
+            line = word + ' ';
+            y += 45;
+          } else {
+            line = testLine;
+          }
+        }
+        ctx.fillText(line.trim(), 80, y);
+
+        // 💰 Очки
+        ctx.fillStyle = '#00ff99';
+        ctx.font = 'bold 40px Inter';
+        ctx.fillText(`+${points || 0} очков`, 80, y + 70);
+
+        // 📈 График дисциплины — идёт вверх
+        ctx.strokeStyle = '#00ff99';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        const startX = 80;
+        const startY = 500;
+        ctx.moveTo(startX, startY);
+        for (let i = 0; i < 7; i++) {
+          const x = startX + i * 100;
+          const yPos = startY - Math.sin(i * 0.6) * 60 - i * 10; // восходящая линия
+          ctx.lineTo(x, yPos);
+        }
+        ctx.stroke();
+
+        ctx.font = 'bold 30px Inter';
+        ctx.fillText('ДИСЦИПЛИНА', 80, 590);
+
+        // ⚡ Не вставляем никаких посторонних картинок (цель, фото и т.п.)
+        // ⚡ Не сохраняем на диск, просто возвращаем base64
+        const base64 = canvas.toDataURL('image/png');
+
+        res.json({
+          success: true,
+          url: base64, // можно использовать напрямую в <img src={url} />
+        });
+      } catch (err) {
+        console.error('❌ Ошибка генерации share-картинки:', err);
+        res.status(500).json({ success: false, message: 'Ошибка генерации изображения' });
+      }
+    });
 
     const PORT = process.env.PORT || 5002;
     app.listen(PORT, () => {
