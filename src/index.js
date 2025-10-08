@@ -457,22 +457,18 @@ async function startServer() {
         const canvas = createCanvas(width, height);
         const ctx = canvas.getContext('2d');
 
-        // 🖤 Фон
         ctx.fillStyle = '#0b0b0b';
         ctx.fillRect(0, 0, width, height);
 
-        // 🧍‍♂️ Имя пользователя
         ctx.fillStyle = '#00ff99';
         ctx.font = 'bold 48px Inter';
         ctx.textAlign = 'left';
         ctx.fillText(`@${username || 'user'}`, 80, 100);
 
-        // 🏆 Название достижения
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 80px Inter';
         ctx.fillText(title, 80, 200);
 
-        // 📜 Описание — переносим строки, чтобы не выходило за пределы
         ctx.font = '34px Inter';
         ctx.fillStyle = '#ffffff';
         const maxWidth = width - 160;
@@ -492,41 +488,35 @@ async function startServer() {
         }
         ctx.fillText(line.trim(), 80, y);
 
-        // 💰 Очки
         ctx.fillStyle = '#00ff99';
         ctx.font = 'bold 40px Inter';
         ctx.fillText(`+${points || 0} очков`, 80, y + 70);
 
-        // 📈 График дисциплины — идёт вверх
-        ctx.strokeStyle = '#00ff99';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        const startX = 80;
-        const startY = 500;
-        ctx.moveTo(startX, startY);
-        for (let i = 0; i < 7; i++) {
-          const x = startX + i * 100;
-          const yPos = startY - Math.sin(i * 0.6) * 60 - i * 10; // восходящая линия
-          ctx.lineTo(x, yPos);
-        }
-        ctx.stroke();
+        const quotes = [
+          '«Ты не обязан быть лучшим — просто будь лучше, чем вчера 💫»',
+          '«Маленькие шаги каждый день ведут к большим результатам 🌱»',
+          '«Дисциплина сильнее мотивации ⚡️»',
+          '«Начни сейчас. Идеального момента не будет ⏳»',
+          '«Пусть каждый день будет на 1% лучше, чем вчера 🚀»',
+        ];
+        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
 
-        ctx.font = 'bold 30px Inter';
-        ctx.fillText('ДИСЦИПЛИНА', 80, 590);
+        ctx.font = 'italic 30px Inter';
+        ctx.fillStyle = '#9b9b9b';
+        ctx.fillText(randomQuote, 80, height - 60);
 
-        // ⚡ Не вставляем никаких посторонних картинок (цель, фото и т.п.)
-        // ⚡ Не сохраняем на диск, просто возвращаем base64
         const base64 = canvas.toDataURL('image/png');
 
         res.json({
           success: true,
-          url: base64, // можно использовать напрямую в <img src={url} />
+          url: base64,
         });
       } catch (err) {
         console.error('❌ Ошибка генерации share-картинки:', err);
         res.status(500).json({ success: false, message: 'Ошибка генерации изображения' });
       }
     });
+
 
     const PORT = process.env.PORT || 5002;
     app.listen(PORT, () => {
