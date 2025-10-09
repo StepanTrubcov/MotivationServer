@@ -11,11 +11,6 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// const uploadDir = path.join(__dirname, 'uploads');
-// if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-
-// // ⚡ Middleware для статики
-// app.use('/uploads', express.static(uploadDir));
 
 async function startServer() {
   try {
@@ -102,7 +97,6 @@ async function startServer() {
               },
             });
           } else {
-            // если всё ок → просто обновляем
             user = await prisma.user.update({
               where: { telegramId: String(telegramId) },
               data: { firstName, username, photoUrl },
@@ -142,28 +136,31 @@ async function startServer() {
     app.post('/api/initialize-goals/:userId', async (req, res) => {
       const { userId } = req.params;
       const { goalsArray } = req.body;
+
       try {
-        if (!goalsArray || !Array.isArray(goalsArray)) return res.status(400).json({ error: 'goalsArray must be an array' });
+        if (!goalsArray || !Array.isArray(goalsArray)) {
+          return res.status(400).json({ error: 'goalsArray must be an array' });
+        }
 
         for (const goal of goalsArray) {
-          if (!goal.id || !goal.title || !goal.points || !goal.status || !goal.description)
+          if (!goal.id || !goal.title || !goal.points || !goal.status || !goal.description) {
             return res.status(400).json({ error: `Invalid goal data: ${JSON.stringify(goal)}` });
+          }
 
           let statusValue;
           switch (goal.status) {
-            case 'done':
-              statusValue = 'completed';
-              break;
+            case 'done': statusValue = 'completed'; break;
             case 'in_progress':
-            case 'not_started':
-              statusValue = goal.status;
-              break;
+            case 'not_started': statusValue = goal.status; break;
             default:
               return res.status(400).json({ error: `Invalid status value: ${goal.status}` });
           }
 
+          // УНИКАЛЬНЫЙ ID ДЛЯ КАЖДОГО ПОЛЬЗОВАТЕЛЯ
+          const uniqueGoalId = `${userId}_${goal.id}`;
+
           await prismaPostgres.goal.upsert({
-            where: { id: String(goal.id) },
+            where: { id: uniqueGoalId },
             update: {
               title: goal.title,
               points: goal.points,
@@ -175,7 +172,7 @@ async function startServer() {
               progress: goal.progress || 0,
             },
             create: {
-              id: String(goal.id),
+              id: uniqueGoalId,
               title: goal.title,
               points: goal.points,
               status: statusValue,
@@ -187,6 +184,7 @@ async function startServer() {
             },
           });
         }
+
         res.json({ message: 'Goals initialized' });
       } catch (err) {
         console.error('Error in /api/initialize-goals/:userId:', err);
