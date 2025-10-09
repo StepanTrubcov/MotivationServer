@@ -74,43 +74,53 @@ async function startServer() {
       }
     });
 
-app.post('/api/users', async (req, res) => {
-  const { telegramId, firstName, username, photoUrl } = req.body;
+    app.post('/api/users', async (req, res) => {
+      const { telegramId, firstName, username, photoUrl } = req.body;
 
-  try {
-    // Ищем существующего пользователя
-    const existingUser = await prisma.user.findUnique({
-      where: { telegramId: String(telegramId) },
+      try {
+        let user = await prisma.user.findUnique({
+          where: { telegramId: String(telegramId) },
+        });
+
+        if (user) {
+          if (!user.registrationDate) {
+            await prisma.achievement.deleteMany({ where: { userId: user.id } });
+            await prisma.user.delete({ where: { id: user.id } });
+
+            user = await prisma.user.create({
+              data: {
+                telegramId: String(telegramId),
+                firstName,
+                username,
+                photoUrl,
+                registrationDate: new Date(),
+              },
+            });
+          } else {
+            user = await prisma.user.update({
+              where: { telegramId: String(telegramId) },
+              data: { firstName, username, photoUrl },
+            });
+          }
+        } else {
+          // создаём нового юзера
+          user = await prisma.user.create({
+            data: {
+              telegramId: String(telegramId),
+              firstName,
+              username,
+              photoUrl,
+              registrationDate: new Date(),
+            },
+          });
+        }
+
+        res.json(user);
+      } catch (err) {
+        console.error('Error in /api/users:', err);
+        res.status(500).json({ error: err.message });
+      }
     });
-
-    if (existingUser) {
-      // Удаляем все достижения
-      await prisma.achievement.deleteMany({ where: { userId: existingUser.id } });
-
-      // Удаляем самого пользователя
-      await prisma.user.delete({ where: { id: existingUser.id } });
-    }
-
-    // Создаём нового пользователя с переданными данными
-    const newUser = await prisma.user.create({
-      data: {
-        telegramId: String(telegramId),
-        firstName,
-        username,
-        photoUrl,
-        registrationDate: new Date(),
-        pts: 0,
-        completedDates: [],
-      },
-    });
-
-    res.json(newUser);
-  } catch (err) {
-    console.error('Error in /api/users:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 
     app.get('/api/goals/:userId', async (req, res) => {
       const { userId } = req.params;
